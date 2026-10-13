@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AURA BATTLE - ARENA DUEL</title>
+  
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: #08070c;
+      color: #ffffff;
+      font-family: 'Impact', 'Arial Black', -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 10px;
+      overflow-x: hidden;
+    }
+
+    .header { text-align: center; margin-bottom: 10px; }
+    .title {
+      font-size: 2.2rem;
+      letter-spacing: 3px;
+      background: linear-gradient(180deg, #c084fc 0%, #a855f7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 15px rgba(168, 85, 247, 0.8);
+      text-transform: uppercase;
+    }
+    .status-badge {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 4px 14px;
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid #a855f7;
+      border-radius: 20px;
+      font-family: sans-serif;
+      font-size: 0.8rem;
+      color: #e9d5ff;
+    }
+
+    /* Grille à 2 écrans côte à côte */
+    .arena-container {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 12px;
+    }
+
+    .player-box {
+      flex: 1;
+      position: relative;
+      aspect-ratio: 3 / 4;
+      background: #000;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 2px solid #a855f7;
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+    }
+
+    .player-box.opponent {
+      border-color: #ef4444;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    }
+
+    .player-label {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: sans-serif;
+      font-size: 0.7rem;
+      font-weight: bold;
+      z-index: 10;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    video, canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    #webcam { transform: scaleX(-1); }
+
+    /* Dashboard d'Aura */
+    .aura-dashboard {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 12px;
+    }
+    .aura-card {
+      flex: 1;
+      background: #120e1a;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: 10px;
+      padding: 8px;
+      text-align: center;
+    }
+    .aura-card .label { font-family: sans-serif; font-size: 0.65rem; color: #a1a1aa; }
+    .aura-card .value { font-size: 1.4rem; color: #f0abfc; }
+
+    .controls { width: 100%; max-width: 800px; }
+    .btn-battle {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+    }
+  </style>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <div class="header">
+    <h1 class="title">AURA BATTLE</h1>
+    <div id="status" class="status-badge">RECHERCHE DE SERVEUR...</div>
+  </div>
+
+  <div class="aura-dashboard">
+    <div class="aura-card">
+      <div class="label">TON AURA</div>
+      <div id="myAuraVal" class="value">0</div>
+    </div>
+    <div class="aura-card">
+      <div class="label">AURA ADVERSAIRE</div>
+      <div id="oppAuraVal" class="value">0</div>
+    </div>
+  </div>
+
+  <div class="arena-container">
+    <!-- ÉCRAN GAUCHE : TOI -->
+    <div class="player-box">
+      <div class="player-label" style="color: #c084fc;">TOI</div>
+      <video id="webcam" autoplay playsinline muted></video>
+      <canvas id="output_canvas"></canvas>
+    </div>
+
+    <!-- ÉCRAN DROITE : ADVERSAIRE -->
+    <div class="player-box opponent">
+      <div class="player-label" style="color: #f87171;">ADVERSAIRE</div>
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="findMatchBtn" class="btn-battle">LANCER LE DUEL</button>
+  </div>
+
+  <script>
+    const statusDiv = document.getElementById('status');
+    const findMatchBtn = document.getElementById('findMatchBtn');
+    const videoElement = document.getElementById('webcam');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+
+    const myAuraEl = document.getElementById('myAuraVal');
+    const oppAuraEl = document.getElementById('oppAuraVal');
+
+    let totalAura = 0;
+    let peerConnection = null;
+    let localStream = null;
+    let roomId = null;
+
+    const socket = io();
+
+    const rtcConfig = {
+      iceServers: [{ urls: 'stun:stun.l.google.com:19020' }]
+    };
+
+    socket.on('connect', () => {
+      statusDiv.textContent = 'PRÊT AU COMBAT';
+    });
+
+    // Démarrer WebRTC pour transmettre la caméra
+    function createPeerConnection() {
+      peerConnection = new RTCPeerConnection(rtcConfig);
+
+      if (localStream) {
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+      }
+
+      peerConnection.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('signal', { room: roomId, signal: { candidate: event.candidate } });
+        }
+      };
+    }
+
+    socket.on('matchFound', async (data) => {
+      roomId = data.roomId;
+      statusDiv.textContent = 'ADVERSAIRE CONNECTÉ 🔥';
+      statusDiv.style.borderColor = '#ef4444';
+
+      createPeerConnection();
+
+      if (data.role === 'player1') {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit('signal', { room: roomId, signal: { offer: offer } });
+      }
+    });
+
+    socket.on('signal', async (data) => {
+      if (!peerConnection) createPeerConnection();
+
+      if (data.signal.offer) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('signal', { room: roomId, signal: { answer: answer } });
+      } else if (data.signal.answer) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.answer));
+      } else if (data.signal.candidate) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+      }
+    });
+
+    // Gestion de la caméra locale
+    async function initCamera() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+        videoElement.srcObject = localStream;
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1 });
+
+        hands.onResults((results) => {
+          canvasElement.width = videoElement.videoWidth;
+          canvasElement.height = videoElement.videoHeight;
+          canvasCtx.save();
+          canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            totalAura += 5;
+            myAuraEl.textContent = totalAura;
+            if (roomId) socket.emit('updateAura', { room: roomId, aura: totalAura });
+
+            for (const landmarks of results.multiHandLandmarks) {
+              for (const pt of landmarks) {
+                canvasCtx.beginPath();
+                canvasCtx.arc(pt.x * canvasElement.width, pt.y * canvasElement.height, 5, 0, 2 * Math.PI);
+                canvasCtx.fillStyle = '#a855f7';
+                canvasCtx.fill();
+              }
+            }
+          }
+          canvasCtx.restore();
+        });
+
+        const camera = new Camera(videoElement, {
+          onFrame: async () => { await hands.send({ image: videoElement }); },
+          width: 480, height: 640
+        });
+        camera.start();
+
+      } catch (err) {
+        statusDiv.textContent = 'ACCÈS CAMÉRA REFUSÉ';
+      }
+    }
+
+    socket.on('opponentAura', (data) => {
+      oppAuraEl.textContent = data.aura;
+    });
+
+    findMatchBtn.addEventListener('click', () => {
+      statusDiv.textContent = 'RECHERCHE D\'UN ADVERSAIRE...';
+      socket.emit('findMatch');
+    });
+
+    initCamera();
+  </script>
+</body>
+</html>
