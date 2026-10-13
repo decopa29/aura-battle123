@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AURA BATTLE - DUEL NEON</title>
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: #08070c;
+      color: #ffffff;
+      font-family: 'Impact', 'Arial Black', -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 12px;
+      overflow-x: hidden;
+    }
+
+    /* En-tête Gaming */
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .title {
+      font-size: 2.4rem;
+      letter-spacing: 4px;
+      background: linear-gradient(180deg, #c084fc 0%, #a855f7 50%, #6b21a8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
+      text-transform: uppercase;
+    }
+    .status-badge {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 4px 14px;
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid #a855f7;
+      border-radius: 20px;
+      font-family: sans-serif;
+      font-size: 0.8rem;
+      color: #e9d5ff;
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+    }
+
+    /* Dashboard d'Aura */
+    .aura-dashboard {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 440px;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+    .aura-card {
+      flex: 1;
+      background: #120e1a;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: 12px;
+      padding: 8px 12px;
+      text-align: center;
+      box-shadow: inset 0 0 10px rgba(168, 85, 247, 0.2);
+    }
+    .aura-card .label {
+      font-family: sans-serif;
+      font-size: 0.7rem;
+      color: #a1a1aa;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .aura-card .value {
+      font-size: 1.5rem;
+      color: #f0abfc;
+      text-shadow: 0 0 10px #c084fc;
+    }
+
+    /* Cadre de la Webcam & Effets */
+    .game-container {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+      aspect-ratio: 4 / 3;
+      background: #000000;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 3px solid #a855f7;
+      box-shadow: 0 0 30px rgba(168, 85, 247, 0.5), inset 0 0 20px rgba(168, 85, 247, 0.3);
+    }
+    video, canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    /* Badges de détection sur l'image */
+    .pose-hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 10;
+    }
+    .hud-tag {
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid #38bdf8;
+      color: #38bdf8;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-family: sans-serif;
+      font-size: 0.75rem;
+      font-weight: bold;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+    }
+    .hud-tag.active {
+      border-color: #f43f5e;
+      color: #f43f5e;
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.8);
+      animation: pulse 0.6s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
+
+    /* Barre de puissance */
+    .power-bar-container {
+      width: 100%;
+      max-width: 440px;
+      height: 12px;
+      background: #18181b;
+      border-radius: 6px;
+      margin-top: 12px;
+      overflow: hidden;
+      border: 1px solid #3f3f46;
+    }
+    .power-bar-fill {
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, #a855f7 0%, #ec4899 100%);
+      box-shadow: 0 0 12px #ec4899;
+      transition: width 0.3s ease;
+    }
+
+    /* Boutons & Contrôles */
+    .controls {
+      margin-top: 15px;
+      width: 100%;
+      max-width: 440px;
+    }
+    .btn-battle {
+      width: 100%;
+      padding: 18px;
+      border: none;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
+      color: #ffffff;
+      font-size: 1.3rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(168, 85, 247, 0.5);
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+    .btn-battle:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 10px rgba(168, 85, 247, 0.3);
+    }
+  </style>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <div class="header">
+    <h1 class="title">AURA BATTLE</h1>
+    <div id="status" class="status-badge">RECHERCHE DE SERVEUR...</div>
+  </div>
+
+  <div class="aura-dashboard">
+    <div class="aura-card">
+      <div class="label">Aura / sec</div>
+      <div id="auraRate" class="value">+0</div>
+    </div>
+    <div class="aura-card">
+      <div class="label">Aura Totale</div>
+      <div id="totalAura" class="value">0</div>
+    </div>
+  </div>
+
+  <div class="game-container">
+    <div class="pose-hud">
+      <div id="tag67" class="hud-tag">⚡ 67 SEVEN : OFF</div>
+      <div id="tagMog" class="hud-tag">🗿 MOG / JAWLINE : OFF</div>
+      <div id="tagDance" class="hud-tag">🔥 AURA DANCE : OFF</div>
+    </div>
+
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="output_canvas"></canvas>
+  </div>
+
+  <div class="power-bar-container">
+    <div id="powerBar" class="power-bar-fill"></div>
+  </div>
+
+  <div class="controls">
+    <button id="findMatchBtn" class="btn-battle">LANCER LE DUEL</button>
+  </div>
+
+  <script>
+    const statusDiv = document.getElementById('status');
+    const findMatchBtn = document.getElementById('findMatchBtn');
+    const videoElement = document.getElementById('webcam');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+
+    const totalAuraEl = document.getElementById('totalAura');
+    const auraRateEl = document.getElementById('auraRate');
+    const powerBar = document.getElementById('powerBar');
+
+    const tag67 = document.getElementById('tag67');
+    const tagMog = document.getElementById('tagMog');
+    const tagDance = document.getElementById('tagDance');
+
+    let totalAura = 0;
+    let currentRate = 10;
+
+    const socket = io();
+
+    socket.on('connect', () => {
+      statusDiv.textContent = 'PRÊT AU COMBAT';
+      statusDiv.style.borderColor = '#22c55e';
+    });
+
+    // Mettre à jour l'Aura régulièrement
+    setInterval(() => {
+      totalAura += currentRate;
+      totalAuraEl.textContent = totalAura;
+      auraRateEl.textContent = '+' + currentRate;
+      powerBar.style.width = Math.min(100, (totalAura % 1000) / 10) + '%';
+    }, 1000);
+
+    // Initialisation Webcam & MediaPipe
+    async function initCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
+          audio: true
+        });
+        videoElement.srcObject = stream;
+
+        const hands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1 });
+
+        hands.onResults((results) => {
+          canvasElement.width = videoElement.videoWidth;
+          canvasElement.height = videoElement.videoHeight;
+          canvasCtx.save();
+          canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            tag67.classList.add('active');
+            tag67.textContent = '⚡ 67 SEVEN : DÉTECTÉ (+50)';
+            currentRate = 60;
+
+            for (const landmarks of results.multiHandLandmarks) {
+              for (const pt of landmarks) {
+                canvasCtx.beginPath();
+                canvasCtx.arc(pt.x * canvasElement.width, pt.y * canvasElement.height, 6, 0, 2 * Math.PI);
+                canvasCtx.fillStyle = '#f0abfc';
+                canvasCtx.shadowColor = '#c084fc';
+                canvasCtx.shadowBlur = 10;
+                canvasCtx.fill();
+              }
+            }
+          } else {
+            tag67.classList.remove('active');
+            tag67.textContent = '⚡ 67 SEVEN : OFF';
+            currentRate = 10;
+          }
+          canvasCtx.restore();
+        });
+
+        const camera = new Camera(videoElement, {
+          onFrame: async () => { await hands.send({ image: videoElement }); },
+          width: 640, height: 480
+        });
+        camera.start();
+
+      } catch (err) {
+        statusDiv.textContent = 'ACCÈS CAMÉRA REFUSÉ';
+      }
+    }
+
+    findMatchBtn.addEventListener('click', () => {
+      statusDiv.textContent = 'RECHERCHE D\'UN ADVERSAIRE...';
+      socket.emit('findMatch');
+    });
+
+    initCamera();
+  </script>
+</body>
+</html>
